@@ -67,14 +67,26 @@ class TransformerEncoderLayer(nn.Module):
         # x -> norm1 -> att -> dropout -> + -> x
         # |_______________________________|
 
+        x_norm = self.norm1(x)
+        x_att = self.self_attn(x_norm)
+        x_drop = self.dropout(x_att)
+        x = x + x_drop
+
         # TODO: convolution layer 
         # x -> conv -> x
         # this defaults to nn.Identity()
         # unless conformer_kernel_size > 0 in the encoder
 
+        x = self.conv(x)
+
         # TODO: feed-forward network with residual connection
         # x -> norm2 -> ffn -> dropout -> + -> x
         # |_______________________________|
+
+        x_norm2 = self.norm2(x)
+        x_ffn = self.feed_forward(x_norm2)
+        x_drop2 = self.dropout(x_ffn)
+        x = x + x_drop2
 
         if pos_emb is not None:
             x = (x, pos_emb)
@@ -161,14 +173,21 @@ class TransformerEncoder(torch.nn.Module):
         xs_pad, ilens = self.frontend(xs_pad, ilens)
         
         # prepare masks
-        masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
-
-        # TODO: apply convolutional subsampling, i.e., self.embed
-
-        # TODO: forward encoder layers
+        masks = (make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
         if isinstance(xs_pad, tuple):
             xs_pad, pos_emb = xs_pad[0], xs_pad[1]
+        else:
+            pos_emb = 0
+
+        # TODO: apply convolutional subsampling, i.e., self.embed
+        xs_pad = self.embed(xs_pad)
+
+        xs_pad = xs_pad - torch.inf*masks
+
+        xs_pad = xs_pad + pos_emb
+        # TODO: forward encoder layers
+        xs_pad = self.encoders(xs_pad)
 
         # apply another layer norm at the end
         xs_pad = self.after_norm(xs_pad)

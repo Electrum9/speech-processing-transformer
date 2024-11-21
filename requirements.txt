@@ -1,0 +1,12 @@
+kaldiio
+numpy
+matplotlib
+configargparse
+tensorboard
+editdistance
+PyYAML
+jiwer
+sentencepiece
+soundfile
+librosa
+torch_complex

@@ -68,7 +68,7 @@ class TransformerEncoderLayer(nn.Module):
         # |_______________________________|
 
         x_norm = self.norm1(x)
-        x_att = self.self_attn(x_norm)
+        x_att = self.self_attn(x_norm, x_norm, x_norm, mask)
         x_drop = self.dropout(x_att)
         x = x + x_drop
 

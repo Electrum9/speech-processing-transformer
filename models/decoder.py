@@ -185,7 +185,7 @@ class TransformerDecoder(nn.Module):
             memory.device
         )
 
-        x = self.embed(tgt)
+        x = self.embed(torch.nn.functional.relu(tgt))
         x, tgt_mask, memory, memory_mask = self.decoders(x, tgt_mask, memory, memory_mask)
         x = self.after_norm(x)
         x = self.output_layer(x)

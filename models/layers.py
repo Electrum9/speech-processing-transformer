@@ -344,7 +344,7 @@ class MultiHeadedAttention(nn.Module):
         # Attention is softmax(QK^T / sqrt(d_k)) V
 
         # TODO calculate QK^T / sqrt(d_k)
-        scores = torch.matmul(q, k.permute(0,2,1)) / torch.sqrt(self.d_k)
+        scores = torch.matmul(q, k.permute(0,1,3,2)) / math.sqrt(self.d_k)
         return self.forward_attention(v, scores, mask)
 
 class RelPositionMultiHeadedAttention(MultiHeadedAttention):

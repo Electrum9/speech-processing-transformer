@@ -103,7 +103,7 @@ class ASRModel(torch.nn.Module):
         :params list xlens- Lengths of unpadded feature sequences, (batch,)
         """
 
-        batch, _, _ = xs.shape
+        batch, *_ = xs.shape
         xlens = torch.tensor(xlens, dtype=torch.long, device=xs.device)
 
         # TODO: Encoder forward (CNN + Transformer)
@@ -122,7 +122,7 @@ class ASRModel(torch.nn.Module):
         cache = []
 
         for i in range(max_decode_len):
-            scores, cache = self.decoder.forward_one_step(xs, ys_in_pad, ys_in_lens, cache)
+            scores, cache = self.decoder.forward_one_step(xs, xs_lens, ys_in_pad, ys_in_lens, cache)
             y = torch.argmax(scores, dim=-1, keepdim=True) # (batch, 1)
             ys_in_pad = torch.cat([ys_in_pad, y], dim=-1)
             ys_in_lens = ys_in_lens + 1

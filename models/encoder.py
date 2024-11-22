@@ -179,10 +179,10 @@ class TransformerEncoder(torch.nn.Module):
             xs_pad, pos_emb = xs_pad[0], xs_pad[1]
 
         # TODO: apply convolutional subsampling, i.e., self.embed
-        xs_pad = self.embed(xs_pad)
+        xs_pad, masks = self.embed(xs_pad, masks)
 
         # TODO: forward encoder layers
-        xs_pad = self.encoders(xs_pad)
+        xs_pad, masks = self.encoders(xs_pad, masks)
 
         # apply another layer norm at the end
         xs_pad = self.after_norm(xs_pad)

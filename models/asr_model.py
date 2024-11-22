@@ -69,8 +69,10 @@ class ASRModel(torch.nn.Module):
         # TODO: implement forward of the ASR model
 
         # 1. Encoder forward (CNN + Transformer)
+        xs, xs_lens = self.encoder(xs, xlens)
 
         # 2. Compute Loss by calling self.calculate_loss()
+        loss_att = self.calculate_loss(xs, xs_lens, ys, ylens)
 
         return loss_att
 
@@ -87,8 +89,10 @@ class ASRModel(torch.nn.Module):
         # TODO: Implement decoder forward + loss calculation
 
         # 1. Forward decoder
+        out = self.decoder(encoder_out, encoder_out_lens, ys_pad, ys_pad_lens)
 
         # 2. Compute attention loss using self.criterion_att()
+        loss_att = self.criterion_att(out, ys_pad)
         
         return loss_att
 
@@ -99,14 +103,28 @@ class ASRModel(torch.nn.Module):
         :params list xlens- Lengths of unpadded feature sequences, (batch,)
         """
 
+        batch, _, _ = xs.shape
         xlens = torch.tensor(xlens, dtype=torch.long, device=xs.device)
 
         # TODO: Encoder forward (CNN + Transformer)
+
+        xs, xs_lens = self.encoder(xs, xlens)
 
         # TODO: implement greedy decoding
         # Hints:
         # - Start from <sos> and predict new tokens step-by-step until <eos>. You need a loop.
         # - You may need to set a maximum decoding length.
         # - You can use self.decoder.forward_one_step() for each step which has caches
+
+        max_decode_len = 100
+        ys_in_pad = torch.ones(batch, 1) * self.sos
+        ys_in_lens = torch.ones(batch, 1)
+        cache = []
+
+        for i in range(max_decode_len):
+            scores, cache = self.decoder.forward_one_step(xs, ys_in_pad, ys_in_lens, cache)
+            y = torch.argmax(scores, dim=-1, keepdim=True) # (batch, 1)
+            ys_in_pad = torch.cat([ys_in_pad, y], dim=-1)
+            ys_in_lens = ys_in_lens + 1
 
         return predictions

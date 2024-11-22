@@ -227,7 +227,6 @@ class TransformerDecoder(nn.Module):
         )
 
         x = self.embed(tgt)
-
         if cache is None:
             cache = [None] * len(self.decoders)
         new_cache = []

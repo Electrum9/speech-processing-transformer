@@ -11,7 +11,6 @@ from torch.nn import DataParallel
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import GradScaler, autocast
 
 from models.asr_model import ASRModel
 from models.scheduler import WarmupLR
@@ -92,8 +91,6 @@ class Trainer:
             self.epoch = 0
         self.start_time = time.time()
 
-        self.scaler = GradScaler()
-
     def train(self):
         """Performs ASR Training using the provided configuration.
         This is the main training wrapper that trains and evaluates the model across epochs
@@ -134,13 +131,9 @@ class Trainer:
                 next(self.model.parameters()).device,
             )
 
-            # Automatic Mixed Precision
-            with autocast():
-                loss = self.model(feats, feat_lens, target, target_lens)
-                loss /= self.params.accum_grad
-
-            # Scale loss for backward pass
-            self.scaler.scale(loss).backward()
+            loss = self.model(feats, feat_lens, target, target_lens)
+            loss /= self.params.accum_grad
+            loss.backward()
 
             if (i + 1) % self.params.log_interval == 0:
                 logging.info(
@@ -148,16 +141,13 @@ class Trainer:
                 )
 
             if (i + 1) % self.params.accum_grad == 0:
-                # Gradient clipping
                 grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.params.grad_clip
                 )
                 if math.isnan(grad_norm):
                     logging.info("[Warning] Grad norm is nan. Do not update model.")
                 else:
-                    # Unscale gradients and update optimizer
-                    self.scaler.step(self.opt)
-                    self.scaler.update()
+                    self.opt.step()
                     self.scheduler.step()
 
                 self.opt.zero_grad()
@@ -180,9 +170,7 @@ class Trainer:
                     next(self.model.parameters()).device,
                 )
 
-                # Automatic Mixed Precision for Validation
-                with autocast():
-                    loss = self.model(feats, feat_lens, target, target_lens)
+                loss = self.model(feats, feat_lens, target, target_lens)
 
                 self.val_stats["nbatches"] += 1
                 self.val_stats["loss"] += loss.item()

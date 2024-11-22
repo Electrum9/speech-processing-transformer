@@ -89,10 +89,10 @@ class ASRModel(torch.nn.Module):
         # TODO: Implement decoder forward + loss calculation
 
         # 1. Forward decoder
-        out = self.decoder(encoder_out, encoder_out_lens, ys_pad, ys_pad_lens)
+        out = self.decoder(encoder_out, encoder_out_lens, ys_in_pad, ys_in_lens)
 
         # 2. Compute attention loss using self.criterion_att()
-        loss_att = self.criterion_att(out, ys_pad)
+        loss_att = self.criterion_att(out, ys_out_pad)
         
         return loss_att
 
@@ -119,7 +119,7 @@ class ASRModel(torch.nn.Module):
         max_decode_len = 100
         ys_in_pad = torch.ones(batch, 1, dtype=torch.long, device=xs.device) * self.sos
         ys_in_lens = torch.ones(batch, dtype=torch.long, device=xs.device)
-        cache = []
+        cache = None
 
         for i in range(max_decode_len):
             scores, cache = self.decoder.forward_one_step(xs, xs_lens, ys_in_pad, ys_in_lens, cache)

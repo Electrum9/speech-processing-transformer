@@ -173,19 +173,14 @@ class TransformerEncoder(torch.nn.Module):
         xs_pad, ilens = self.frontend(xs_pad, ilens)
         
         # prepare masks
-        masks = (make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
+        masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
         if isinstance(xs_pad, tuple):
             xs_pad, pos_emb = xs_pad[0], xs_pad[1]
-        else:
-            pos_emb = 0
 
         # TODO: apply convolutional subsampling, i.e., self.embed
         xs_pad = self.embed(xs_pad)
 
-        xs_pad = xs_pad - torch.inf*masks
-
-        xs_pad = xs_pad + pos_emb
         # TODO: forward encoder layers
         xs_pad = self.encoders(xs_pad)
 

@@ -154,7 +154,8 @@ class ASRDataset(Dataset):
         # Hint: use the metadata in the utterance id
         # The tag is [ENG] for english, [ITA] for italian
         if mode == 'multilingual':
-            text_lid = 
+            lang_id = '[ENG] ' if 'eng' in idx else '[ITA] '
+            text_lid = lang_id + text
 
         else:
             text_lid = text

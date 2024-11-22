@@ -117,8 +117,8 @@ class ASRModel(torch.nn.Module):
         # - You can use self.decoder.forward_one_step() for each step which has caches
 
         max_decode_len = 100
-        ys_in_pad = torch.ones(batch, 1) * self.sos
-        ys_in_lens = torch.ones(batch, 1)
+        ys_in_pad = torch.ones(batch, 1, dtype=torch.long, device=xs.device) * self.sos
+        ys_in_lens = torch.ones(batch, dtype=torch.long, device=xs.device)
         cache = []
 
         for i in range(max_decode_len):
@@ -127,4 +127,5 @@ class ASRModel(torch.nn.Module):
             ys_in_pad = torch.cat([ys_in_pad, y], dim=-1)
             ys_in_lens = ys_in_lens + 1
 
+        predictions = ys_in_pad.tolist()
         return predictions

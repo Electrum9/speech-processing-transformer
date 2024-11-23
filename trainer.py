@@ -131,13 +131,13 @@ class Trainer:
                 next(self.model.parameters()).device,
             )
 
-            loss = self.model(feats, feat_lens, target, target_lens)
+            loss, acc = self.model(feats, feat_lens, target, target_lens)
             loss /= self.params.accum_grad
             loss.backward()
 
             if (i + 1) % self.params.log_interval == 0:
                 logging.info(
-                    f"[Epoch {self.epoch}, Batch={i}] Train: loss={loss.item() * self.params.accum_grad:.4f}, lr={self.opt.param_groups[0]['lr']}"
+                        f"[Epoch {self.epoch}, Batch={i}] Train: loss={loss.item() * self.params.accum_grad:.4f}, Acc: acc={acc.mean().item()}, lr={self.opt.param_groups[0]['lr']}"
                 )
 
             if (i + 1) % self.params.accum_grad == 0:
@@ -170,7 +170,7 @@ class Trainer:
                     next(self.model.parameters()).device,
                 )
 
-                loss = self.model(feats, feat_lens, target, target_lens)
+                loss, _ = self.model(feats, feat_lens, target, target_lens)
 
                 self.val_stats["nbatches"] += 1
                 self.val_stats["loss"] += loss.item()

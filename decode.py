@@ -122,6 +122,7 @@ def main(cmd_args):
                 tokens = args.bpe.decode(tokens)
 
                 output_dict[key] = tokens.strip()
+                print(output_dict[key])
 
             if target is not None:
                 for key, ref in zip(test_keys, target):

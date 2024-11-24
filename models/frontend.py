@@ -5,6 +5,7 @@ import librosa
 import numpy as np
 import torch
 from torch_complex.tensor import ComplexTensor
+from specaug import specaug
 
 from utils import make_pad_mask
 
@@ -329,6 +330,9 @@ class DefaultFrontend(torch.nn.Module):
         # input_power: (Batch, [Channel,] Length, Freq)
         #       -> input_feats: (Batch, Length, Dim)
         input_feats, _ = self.logmel(input_power, feats_lens)
+
+        # if self.training:
+        #     input_feats = specaug(input_feats)
 
         return input_feats, feats_lens
 

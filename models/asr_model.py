@@ -3,7 +3,7 @@ import torch
 
 from models.encoder import TransformerEncoder
 from models.decoder import TransformerDecoder
-from utils import add_sos_eos, LabelSmoothingLoss
+from utils import add_sos_eos, LabelSmoothingLoss, make_pad_mask
 
 
 class ASRModel(torch.nn.Module):
@@ -72,9 +72,9 @@ class ASRModel(torch.nn.Module):
         xs, xs_lens = self.encoder(xs, xlens)
 
         # 2. Compute Loss by calling self.calculate_loss()
-        loss_att = self.calculate_loss(xs, xs_lens, ys, ylens)
+        loss_att, acc = self.calculate_loss(xs, xs_lens, ys, ylens)
 
-        return loss_att
+        return loss_att, acc
 
     def calculate_loss(
         self,
@@ -93,8 +93,13 @@ class ASRModel(torch.nn.Module):
 
         # 2. Compute attention loss using self.criterion_att()
         loss_att = self.criterion_att(out, ys_out_pad)
+
+        eq = (torch.argmax(out, dim=-1) == ys_out_pad)
+        mask = ~make_pad_mask(ys_in_lens)
+        eq = eq * mask.cuda()
+        acc = eq.sum(axis=-1) / ys_in_lens
         
-        return loss_att
+        return loss_att, acc
 
     def decode_greedy(self, xs, xlens):
         """Perform Greedy Decoding using trained ASRModel
@@ -105,27 +110,43 @@ class ASRModel(torch.nn.Module):
 
         batch, *_ = xs.shape
         xlens = torch.tensor(xlens, dtype=torch.long, device=xs.device)
-
-        # TODO: Encoder forward (CNN + Transformer)
-
         xs, xs_lens = self.encoder(xs, xlens)
 
-        # TODO: implement greedy decoding
-        # Hints:
-        # - Start from <sos> and predict new tokens step-by-step until <eos>. You need a loop.
-        # - You may need to set a maximum decoding length.
-        # - You can use self.decoder.forward_one_step() for each step which has caches
-
-        max_decode_len = 100
-        ys_in_pad = torch.ones(batch, 1, dtype=torch.long, device=xs.device) * self.sos
-        ys_in_lens = torch.ones(batch, dtype=torch.long, device=xs.device)
-        cache = None
+        candidates = [[(0.0, [self.sos], None)] for _ in range(batch)]
+        eos_candidates = [[] for _ in range(batch)] # Reached EOS
 
         for i in range(max_decode_len):
-            scores, cache = self.decoder.forward_one_step(xs, xs_lens, ys_in_pad, ys_in_lens, cache)
-            y = torch.argmax(scores, dim=-1, keepdim=True) # (batch, 1)
-            ys_in_pad = torch.cat([ys_in_pad, y], dim=-1)
-            ys_in_lens = ys_in_lens + 1
+            new_candidates = [[] for j in range(batch)]
 
-        predictions = ys_in_pad.tolist()
+            for b in range(batch):
+                for score, seq, cache in candidates[b]:
+                    ys_in_pad = torch.tensor([seq], dtype=torch.long, device=xs.device)
+                    ys_in_lens = torch.tensor([len(seq)], dtype=torch.long, device=xs.device)
+
+                    scores, cache = self.decoder.forward_one_step(xs[b:b+1], xs_lens[b:b+1], ys_in_pad, ys_in_lens, cache)
+
+                    log_probs = torch.log_softmax(scores[0, -1], dim=-1)
+                    top_k_log_probs, top_k_indices = log_probs.topk(beam_size)
+
+                    for log_prob, idx in zip(top_k_log_probs, top_k_indices):
+                        new_score = score + log_prob.item()
+                        new_seq = seq + [idx.item()]
+
+                        if idx.item() == self.eos:
+                            eos_candidates[b].append((new_score, new_seq))
+                        else:
+                            new_candidates[b].append((new_score, new_seq, cache))
+
+            for b in range(batch):
+                candidates[b] = sorted(new_candidates[b], key=lambda x: x[0], reverse=True)[:beam_size] # cull to top k
+
+            if all(len(eos_candidates[b]) >= beam_size for b in range(batch)):
+                break
+
+        predictions = []
+        for b in range(batch):
+            eos_candidates[b].sort(key=lambda x: x[0], reverse=True)
+            best_hypothesis = eos_candidates[b][0][1] if eos_candidates[b] else candidates[b][0][1]
+            predictions.append(best_hypothesis[1:-1]) # get rid of sos/eos
+
         return predictions

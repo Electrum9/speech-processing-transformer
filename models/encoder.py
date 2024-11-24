@@ -3,6 +3,7 @@ from torch import nn
 from typing import Optional, Tuple
 
 from models.frontend import DefaultFrontend
+from specaug import specaug
 
 from models.layers import (
     LayerNorm,

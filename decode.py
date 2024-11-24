@@ -12,6 +12,22 @@ from loader import create_loader
 from utils import to_device
 import sentencepiece as spm
 
+import torchaudio
+from speechbrain.inference.classifiers import EncoderClassifier
+
+from transformers import Speech2TextProcessor, Speech2TextForConditionalGeneration, Wav2Vec2ForCTC, Wav2Vec2Processor
+
+language_id = EncoderClassifier.from_hparams(source="speechbrain/lang-id-voxlingua107-ecapa", savedir="tmp")
+
+MODEL_ID = "jonatasgrosman/wav2vec2-large-xlsr-53-italian"
+it_processor = Wav2Vec2Processor.from_pretrained(MODEL_ID)
+it_model = Wav2Vec2ForCTC.from_pretrained(MODEL_ID)
+
+en_model = Speech2TextForConditionalGeneration.from_pretrained("facebook/s2t-small-librispeech-asr")
+en_processor = Speech2TextProcessor.from_pretrained("facebook/s2t-small-librispeech-asr")
+
+# mymodel = Speech2TextForConditionalGeneration.from_pretrained("facebook/s2t-medium-mustc-multilingual-st")
+# processor = Speech2TextProcessor.from_pretrained("facebook/s2t-medium-mustc-multilingual-st")
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -114,21 +130,38 @@ def main(cmd_args):
                     (feats, feat_lens), next(model.parameters()).device
                 )
 
-            # preds: list of lists of ints
-            preds = model.decode_greedy(feats, feat_lens)
-
-            for key, pred in zip(test_keys, preds):
-                tokens = [x for x in pred if x != train_params.text_pad]
-                tokens = args.bpe.decode(tokens)
-
-                output_dict[key] = tokens.strip()
+            for i, key in enumerate(test_keys):
+                lid = language_id.classify_batch(feats.cpu()[i])
+                lid = lid[-1][0]
+                if lid == 'en: English':
+                    lid = '[ENG] '
+                    mymodel = lambda inputs: en_model.generate(inputs["input_features"], attention_mask=inputs["attention_mask"])
+                    processor = en_processor
+                else:
+                    lid = '[ITA] '
+                    mymodel = lambda inputs: it_model(inputs.input_values, attention_mask=inputs.attention_mask).logits.argmax(dim=-1)
+                    processor = it_processor
+                inputs = processor(feats.cpu()[i], sampling_rate=16000, return_tensors="pt")
+                generated_ids = mymodel(inputs)
+                transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                transcription = transcription.upper()
+                output_dict[key] = lid + transcription
                 print(output_dict[key])
+                # preds: list of lists of ints
+                # preds = model.decode_greedy(feats, feat_lens)
 
-            if target is not None:
-                for key, ref in zip(test_keys, target):
-                    tokens = [x for x in ref if x != train_params.text_pad]
-                    tokens = args.bpe.decode(tokens)
-                    target_dict[key] = tokens.strip()
+            # for key, pred in zip(test_keys, preds):
+            #     tokens = [x for x in pred if x != train_params.text_pad]
+            #     tokens = args.bpe.decode(tokens)
+
+            #     output_dict[key] = tokens.strip()
+            #     print(output_dict[key])
+
+            # if target is not None:
+            #     for key, ref in zip(test_keys, target):
+            #         tokens = [x for x in ref if x != train_params.text_pad]
+            #         tokens = args.bpe.decode(tokens)
+            #         target_dict[key] = tokens.strip()
 
     # Write hypotheses to a file
     output_file = os.path.join(log_dir, "decoded_hyp.txt")
